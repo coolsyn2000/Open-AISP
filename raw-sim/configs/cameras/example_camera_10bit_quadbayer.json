@@ -1,0 +1,69 @@
+{
+  "camera": {
+    "name": "example_10bit_quadbayer_camera",
+    "analog_gain": 8.0,
+    "iso_definition": "ISO = analog_gain * 100"
+  },
+  "gamma": 2.2,
+  "awb": {
+    "red_gain": 2.0,
+    "green_gain": 1.0,
+    "blue_gain": 1.7
+  },
+  "ccm": {
+    "matrix": [
+      [1.8, -0.6, -0.2],
+      [-0.2, 1.4, -0.2],
+      [0.0, -0.5, 1.5]
+    ]
+  },
+  "sensor": {
+    "bit_depth": 10,
+    "black_level": "auto",
+    "black_level_10bit_reference": 32,
+    "white_level": "auto",
+    "full_well": 10000,
+    "quantize": true
+  },
+  "lens_psf": {
+    "enabled": true,
+    "kernel": "gaussian",
+    "kernel_size": 5,
+    "sigma": 1.0
+  },
+  "cfa": {
+    "type": "quadbayer",
+    "pattern": "RGGB"
+  },
+  "readout": {
+    "mode": "full"
+  },
+  "noise": {
+    "model": "poisson_gaussian",
+    "poisson_mode": "gaussian_approx",
+    "strength_multiplier": 1.0,
+    "calibration": {
+      "base_analog_gain": 1.0,
+      "shot_noise_gain_exponent": 1.0,
+      "read_noise_gain_exponent": 1.0,
+      "channels": {
+        "ch0": {"K": 0.00018, "sigma_read": 0.00070},
+        "ch1": {"K": 0.000181, "sigma_read": 0.00071},
+        "ch2": {"K": 0.000160, "sigma_read": 0.00065},
+        "ch3": {"K": 0.000161, "sigma_read": 0.00066},
+        "ch4": {"K": 0.000179, "sigma_read": 0.00069},
+        "ch5": {"K": 0.000182, "sigma_read": 0.00072},
+        "ch6": {"K": 0.000159, "sigma_read": 0.00064},
+        "ch7": {"K": 0.000162, "sigma_read": 0.00066},
+        "ch8": {"K": 0.000160, "sigma_read": 0.00066},
+        "ch9": {"K": 0.000161, "sigma_read": 0.00067},
+        "ch10": {"K": 0.000200, "sigma_read": 0.00076},
+        "ch11": {"K": 0.000202, "sigma_read": 0.00077},
+        "ch12": {"K": 0.000159, "sigma_read": 0.00065},
+        "ch13": {"K": 0.000162, "sigma_read": 0.00066},
+        "ch14": {"K": 0.000201, "sigma_read": 0.00076},
+        "ch15": {"K": 0.000203, "sigma_read": 0.00078}
+      }
+    }
+  }
+}

@@ -1,0 +1,5 @@
+numpy>=1.24
+pillow>=10
+PyYAML>=6
+torch>=2.1
+pytest>=8

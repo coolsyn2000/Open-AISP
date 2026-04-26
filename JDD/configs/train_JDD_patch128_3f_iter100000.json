@@ -1,0 +1,57 @@
+{
+  "seed": 7,
+  "device": "cuda",
+  "gpu_id": 1,
+  "camera_module_json": "./camera_module_10bit_binning_precali_noise_rggb_ag1to64.json",
+  "data": {
+    "image_roots": [
+      "../../raw-sim/datasets/DIV2K",
+      "../../raw-sim/datasets/Flickr2K"
+    ],
+    "patch_size": 128,
+    "frames": 3,
+    "noise_map_reduce": "mean",
+    "cache_images": true,
+    "max_cached_images": 512,
+    "val": {
+      "image_roots": [
+        "../../raw-sim/datasets/DIV2K",
+        "../../raw-sim/datasets/Flickr2K"
+      ],
+      "max_images": 32
+    }
+  },
+  "model": {
+    "width": 32,
+    "middle_blocks": 8,
+    "dropout": 0.0
+  },
+  "loss": {
+    "charbonnier_eps": 0.001
+  },
+  "optimizer": {
+    "lr": 0.0002,
+    "weight_decay": 0.0
+  },
+  "metrics": {
+    "lpips": true
+  },
+  "train": {
+    "output_dir": "runs/example_binning",
+    "iterations": 100000,
+    "batch_size": 64,
+    "num_workers": 8,
+    "persistent_workers": true,
+    "prefetch_factor": 8,
+    "worker_torch_threads": 1,
+    "shuffle_images": false,
+    "amp": true,
+    "cudnn_benchmark": true,
+    "matmul_precision": "high",
+    "grad_clip": 1.0,
+    "log_every": 10,
+    "save_every": 10000,
+    "val_every": 10000,
+    "max_val_batches": 5
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "camera": {
+    "name": "example_10bit_binning_camera",
+    "analog_gain": 64.0,
+    "iso_definition": "ISO = analog_gain * 100"
+  },
+  "gamma": 2.2,
+  "awb": {
+    "red_gain": 2.0,
+    "green_gain": 1.0,
+    "blue_gain": 1.7
+  },
+  "ccm": {
+    "matrix": [
+      [1.8, -0.6, -0.2],
+      [-0.2, 1.4, -0.2],
+      [0.0, -0.5, 1.5]
+    ]
+  },
+  "sensor": {
+    "bit_depth": 10,
+    "black_level": "auto",
+    "black_level_10bit_reference": 32,
+    "white_level": "auto",
+    "full_well": 10000,
+    "quantize": true
+  },
+  "lens_psf": {
+    "enabled": true,
+    "kernel": "gaussian",
+    "kernel_size": 5,
+    "sigma": 1.0
+  },
+  "cfa": {
+    "type": "binning",
+    "pattern": "RGGB"
+  },
+  "readout": {
+    "mode": "full",
+    "binning_type": "analog_binning",
+    "binning_operation": "average"
+  },
+  "noise": {
+    "model": "poisson_gaussian",
+    "poisson_mode": "gaussian_approx",
+    "strength_multiplier": 1.0,
+    "calibration": {
+      "base_analog_gain": 1.0,
+      "shot_noise_gain_exponent": 1.0,
+      "read_noise_gain_exponent": 1.0,
+      "channels": {
+        "R": {"K": 0.00009, "sigma_read": 0.00045},
+        "Gr": {"K": 0.00008, "sigma_read": 0.00040},
+        "Gb": {"K": 0.00008, "sigma_read": 0.00041},
+        "B": {"K": 0.00010, "sigma_read": 0.00048}
+      }
+    }
+  }
+}

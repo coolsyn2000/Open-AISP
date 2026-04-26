@@ -1,0 +1,7 @@
+/raw-sim/datasets/*
+*__pycache__/
+*.toml
+/.vscode
+/JDD/runs/
+/raw-sim/train_pairs/
+*vscode

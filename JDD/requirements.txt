@@ -1,0 +1,7 @@
+numpy>=1.24
+pillow>=10
+torch>=2.1
+pytest>=8
+tqdm>=4.66
+lpips>=0.1.4
+opencv-python>=4.8
