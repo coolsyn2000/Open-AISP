@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Open-AISP Contributors" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>raw-sim - Open-AISP 文档</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "raw-sim";
+        var mkdocs_page_input_path = "raw-sim/index.zh.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../" class="icon icon-home"> Open-AISP 文档
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../">首页</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">raw-sim</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#srgb-noisy-raw-pipeline">从 sRGB 到 Noisy RAW 的 Pipeline</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#1-gamma">1. 逆 Gamma</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#2-ccm">2. CCM</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#3-awb">3. AWB</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#4-psf-blur-guided-filter">4. PSF Blur 和 Guided Filter</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#5-sensor-level-mapping">5. Sensor Level Mapping</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#6-cfa-sampling">6. CFA Sampling</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#bayer-2x2-binning">Bayer 与 2x2 Binning</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#quad-bayer-4x4">Quad Bayer 4x4</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#7-poisson-gaussian">7. Poisson-Gaussian 噪声</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#analog-gain-iso">Analog Gain 与 ISO</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#batch">Batch 接口</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../jdd/">JDD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../hdr/">HDR</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../aitm/">AITM</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../diffipe/">DiffIPE</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../">Open-AISP 文档</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../" class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">raw-sim</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="raw-sim">raw-sim<a class="headerlink" href="#raw-sim" title="Permanent link">&para;</a></h1>
+<p><code>raw-sim</code> 反向模拟相机早期成像链路：从 clean sRGB 图像生成 noisy packed RAW，同时保留 clean linear RGB 作为监督信号。该模块也是 JDD 等下游学习模块的数据退化来源。</p>
+<h2 id="srgb-noisy-raw-pipeline">从 sRGB 到 Noisy RAW 的 Pipeline<a class="headerlink" href="#srgb-noisy-raw-pipeline" title="Permanent link">&para;</a></h2>
+<p>对每张输入 sRGB 图像或 crop，<code>raw-sim</code> 依次执行：</p>
+<pre><code class="language-text">sRGB
+  -&gt; 逆 gamma
+  -&gt; 逆 CCM
+  -&gt; 逆 AWB
+  -&gt; lens PSF / filter
+  -&gt; sensor level mapping
+  -&gt; CFA sampling and packing
+  -&gt; Poisson-Gaussian noise
+  -&gt; noisy packed RAW
+</code></pre>
+<p>clean target 是逆 gamma 后的 linear RGB。镜头模糊、CFA 采样和传感器噪声只作用在 RAW 分支。</p>
+<h2 id="1-gamma">1. 逆 Gamma<a class="headerlink" href="#1-gamma" title="Permanent link">&para;</a></h2>
+<p>输入图像先归一化到 <span class="arithmatex">\([0, 1]\)</span>，clean linear RGB target 为：</p>
+<div class="arithmatex">\[
+I_{lin} = \operatorname{clip}(I_{srgb}, 0, 1)^\gamma
+\]</div>
+<p>示例配置默认使用 <span class="arithmatex">\(\gamma = 2.2\)</span>。</p>
+<h2 id="2-ccm">2. CCM<a class="headerlink" href="#2-ccm" title="Permanent link">&para;</a></h2>
+<p>相机 JSON 中的 CCM 表示从 camera RGB 到 linear RGB 的颜色校正：</p>
+<div class="arithmatex">\[
+I_{lin} = I_{cam} C^\top
+\]</div>
+<p>反向 unprocess 时使用逆变换：</p>
+<div class="arithmatex">\[
+I_{cam}' = I_{lin}(C^{-1})^\top
+\]</div>
+<p>其中 <span class="arithmatex">\(C\)</span> 对应 <code>ccm.matrix</code>。</p>
+<h2 id="3-awb">3. AWB<a class="headerlink" href="#3-awb" title="Permanent link">&para;</a></h2>
+<p>AWB 通过除以每个颜色通道的 gain 来反向模拟：</p>
+<div class="arithmatex">\[
+I_{cam,c} = \frac{I_{cam,c}'}{g_c}, \quad c \in \{R,G,B\}
+\]</div>
+<p>配置字段为 <code>awb.red_gain</code>、<code>awb.green_gain</code> 和 <code>awb.blue_gain</code>。</p>
+<h2 id="4-psf-blur-guided-filter">4. PSF Blur 和 Guided Filter<a class="headerlink" href="#4-psf-blur-guided-filter" title="Permanent link">&para;</a></h2>
+<p><code>lens_psf</code> 作用在 camera RGB 上，位于 sensor level 映射和 CFA 采样之前。</p>
+<p>Gaussian blur 使用归一化高斯核：</p>
+<div class="arithmatex">\[
+K(x,y) = \frac{1}{Z}\exp\left(-\frac{x^2 + y^2}{2\sigma^2}\right)
+\]</div>
+<p>示例：</p>
+<pre><code class="language-json">{
+  &quot;lens_psf&quot;: {
+    &quot;enabled&quot;: true,
+    &quot;kernel&quot;: &quot;gaussian&quot;,
+    &quot;kernel_size&quot;: 5,
+    &quot;sigma&quot;: 1.0
+  }
+}
+</code></pre>
+<p>也支持 guided filter：</p>
+<pre><code class="language-json">{
+  &quot;lens_psf&quot;: {
+    &quot;enabled&quot;: true,
+    &quot;kernel&quot;: &quot;guided&quot;,
+    &quot;kernel_size&quot;: 5,
+    &quot;eps&quot;: 0.001
+  }
+}
+</code></pre>
+<p>在局部窗口 <span class="arithmatex">\(\omega_k\)</span> 中，guided filter 假设：</p>
+<div class="arithmatex">\[
+q_i = a_k G_i + b_k, \quad i \in \omega_k
+\]</div>
+<p>其中：</p>
+<div class="arithmatex">\[
+a_k = \frac{\operatorname{cov}_{\omega_k}(G, p)}
+{\operatorname{var}_{\omega_k}(G) + \epsilon},
+\qquad
+b_k = \bar{p}_k - a_k \bar{G}_k
+\]</div>
+<p><code>raw-sim</code> 使用亮度作为 guide：</p>
+<div class="arithmatex">\[
+G = 0.299R + 0.587G + 0.114B
+\]</div>
+<p>相比纯 Gaussian blur，guided filter 可以提供边缘感知的平滑。</p>
+<h2 id="5-sensor-level-mapping">5. Sensor Level Mapping<a class="headerlink" href="#5-sensor-level-mapping" title="Permanent link">&para;</a></h2>
+<p>camera RGB 被映射到传感器数字范围：</p>
+<div class="arithmatex">\[
+S = B + I_{cam}(W - B)
+\]</div>
+<p>其中 <span class="arithmatex">\(B\)</span> 是 black level，<span class="arithmatex">\(W\)</span> 是 white level，二者都按最大 DN 归一化：</p>
+<div class="arithmatex">\[
+DN_{max} = 2^{bitdepth} - 1
+\]</div>
+<p>如果 <code>black_level</code> 为 <code>"auto"</code>，默认 10-bit black level reference 是 32 DN：</p>
+<table>
+<thead>
+<tr>
+<th>Bit depth</th>
+<th>Auto black level</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10</td>
+<td>32</td>
+</tr>
+<tr>
+<td>12</td>
+<td>128</td>
+</tr>
+<tr>
+<td>14</td>
+<td>512</td>
+</tr>
+</tbody>
+</table>
+<p>如果开启 <code>quantize</code>，数值会按 bit depth 量化。</p>
+<h2 id="6-cfa-sampling">6. CFA Sampling<a class="headerlink" href="#6-cfa-sampling" title="Permanent link">&para;</a></h2>
+<p><code>raw-sim</code> 支持 Bayer/binning 2x2 packing 和 Quad Bayer 4x4 packing。</p>
+<h3 id="bayer-2x2-binning">Bayer 与 2x2 Binning<a class="headerlink" href="#bayer-2x2-binning" title="Permanent link">&para;</a></h3>
+<p>以 <code>RGGB</code> 为例，2x2 tile 为：</p>
+<pre><code class="language-text">R   Gr
+Gb  B
+</code></pre>
+<p>packed RAW 形状为：</p>
+<div class="arithmatex">\[
+H \times W \times 3 \rightarrow \frac{H}{2} \times \frac{W}{2} \times 4
+\]</div>
+<p>通道顺序为：</p>
+<pre><code class="language-text">[R, Gr, Gb, B]
+</code></pre>
+<p>当 <code>cfa.type = "binning"</code> 时，每个 packed channel 可以继续做 2x2 局部滤波。<code>binning_operation: "average"</code> 保持信号幅度接近 full readout，<code>"sum"</code> 表示累加局部信号。</p>
+<h3 id="quad-bayer-4x4">Quad Bayer 4x4<a class="headerlink" href="#quad-bayer-4x4" title="Permanent link">&para;</a></h3>
+<p>Quad Bayer 会把每个 Bayer 颜色扩展为 2x2 同色块。以 <code>RGGB</code> 为例，4x4 tile 为：</p>
+<pre><code class="language-text">R   R   Gr  Gr
+R   R   Gr  Gr
+Gb  Gb  B   B
+Gb  Gb  B   B
+</code></pre>
+<p>packed RAW 形状为：</p>
+<div class="arithmatex">\[
+H \times W \times 3 \rightarrow \frac{H}{4} \times \frac{W}{4} \times 16
+\]</div>
+<p>通道顺序是 4x4 tile 的 raster order：<code>ch0</code> 到 <code>ch15</code>。</p>
+<h2 id="7-poisson-gaussian">7. Poisson-Gaussian 噪声<a class="headerlink" href="#7-poisson-gaussian" title="Permanent link">&para;</a></h2>
+<p>active signal 会先减 black level，再除以有效传感器范围：</p>
+<div class="arithmatex">\[
+x = \operatorname{clip}\left(\frac{S - B}{W - B}, 0, 1\right)
+\]</div>
+<p>每个通道的噪声方差为：</p>
+<div class="arithmatex">\[
+\sigma^2(x, c) = K_c x + \sigma_{read,c}^2
+\]</div>
+<p>noisy RAW 使用 Poisson-Gaussian 的高斯近似采样：</p>
+<div class="arithmatex">\[
+\tilde{S}_c = S_c + \mathcal{N}\left(0, \sigma^2(x,c)\right)
+\]</div>
+<p>最后裁剪到 <span class="arithmatex">\([0,1]\)</span>。</p>
+<h3 id="analog-gain-iso">Analog Gain 与 ISO<a class="headerlink" href="#analog-gain-iso" title="Permanent link">&para;</a></h3>
+<p>模拟器定义：</p>
+<div class="arithmatex">\[
+ISO = 100 \cdot AG
+\]</div>
+<p>其中 <span class="arithmatex">\(AG\)</span> 是 <code>camera.analog_gain</code>。</p>
+<p>噪声标定参数位于 <code>base_analog_gain</code>。运行时缩放比例为：</p>
+<div class="arithmatex">\[
+r = \frac{AG}{AG_{base}}
+\]</div>
+<div class="arithmatex">\[
+K_c(AG) = K_{c,base} \cdot r^{\alpha_{shot}}
+\]</div>
+<div class="arithmatex">\[
+\sigma_{read,c}(AG) = \sigma_{read,c,base} \cdot r^{\alpha_{read}}
+\]</div>
+<p>指数由 <code>shot_noise_gain_exponent</code> 和 <code>read_noise_gain_exponent</code> 控制。</p>
+<p>对于 binning readout，<code>raw-sim</code> 还会根据 analog/digital binning 以及 average/sum 操作调整有效 shot noise 和 read noise。</p>
+<h2 id="batch">Batch 接口<a class="headerlink" href="#batch" title="Permanent link">&para;</a></h2>
+<p>公共 batch 接口为：</p>
+<pre><code class="language-python">from raw_sim.batch import srgb_to_raw_burst_batch
+
+x, y = srgb_to_raw_burst_batch(
+    rgb=batch_rgb,
+    camera=camera,
+    analog_gain=analog_gain,
+    seed=seed,
+    frames=3,
+    noise_map_reduce=&quot;mean&quot;,
+)
+</code></pre>
+<p>返回：</p>
+<ul>
+<li><code>x</code>：noisy RAW burst 和 noise map，形状为 <code>(B, frames * raw_channels + 1, H/scale, W/scale)</code>。</li>
+<li><code>y</code>：clean linear RGB target，形状为 <code>(B, 3, H, W)</code>。</li>
+</ul>
+<p>JDD 直接调用该接口，因此 <code>raw-sim</code> 中的退化更新会同步影响训练数据。</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../" class="btn btn-neutral float-left" title="首页"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../jdd/" class="btn btn-neutral float-right" title="JDD">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="None" class="fa fa-code-fork" style="color: #fcfcfc"> Open-AISP</a>
+        </span>
+    
+    
+      <span><a href="../" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../jdd/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

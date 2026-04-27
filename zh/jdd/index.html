@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="zh" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Open-AISP Contributors" />
+      <link rel="shortcut icon" href="../../img/favicon.ico" />
+    <title>JDD - Open-AISP 文档</title>
+    <link rel="stylesheet" href="../../css/theme.css" />
+    <link rel="stylesheet" href="../../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "JDD";
+        var mkdocs_page_input_path = "jdd/index.zh.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="../" class="icon icon-home"> Open-AISP 文档
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../">首页</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../raw-sim/">raw-sim</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">JDD</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#_1">任务定义</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_2">随机退化</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#analog-gain">Analog Gain 采样</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#burst-restoration">多帧 Burst Restoration</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_3">训练数据路径</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_4">模型结构</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#_5">训练命令</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../hdr/">HDR</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../aitm/">AITM</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../diffipe/">DiffIPE</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../">Open-AISP 文档</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="../" class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">JDD</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="jdd">JDD<a class="headerlink" href="#jdd" title="Permanent link">&para;</a></h1>
+<p>JDD 是联合去噪与去马赛克模块，目标是从 noisy packed RAW burst 恢复 clean linear RGB：</p>
+<div class="arithmatex">\[
+f_\theta: \{R_t^{noisy}\}_{t=1}^{T}, M_\sigma \rightarrow I_{lin}
+\]</div>
+<p>当前训练配置中 <span class="arithmatex">\(T=3\)</span>，<span class="arithmatex">\(R_t^{noisy}\)</span> 是独立噪声采样得到的 RAW 帧，<span class="arithmatex">\(M_\sigma\)</span> 是 <code>raw-sim</code> 生成的噪声标准差图。</p>
+<h2 id="_1">任务定义<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<p>输入由多帧 packed RAW 和一个 noise map 通道拼接得到：</p>
+<div class="arithmatex">\[
+X = \operatorname{concat}(R_1, R_2, R_3, M_\sigma)
+\]</div>
+<p>对于 Bayer 或 2x2 binning RAW，每帧有 4 个 packed channel，因此：</p>
+<div class="arithmatex">\[
+C_{in}=3 \times 4 + 1 = 13
+\]</div>
+<p>对于 Quad Bayer RAW，每帧有 16 个 packed channel：</p>
+<div class="arithmatex">\[
+C_{in}=3 \times 16 + 1 = 49
+\]</div>
+<p>训练目标是完整空间分辨率的 clean linear RGB：</p>
+<div class="arithmatex">\[
+Y = I_{lin} \in [0,1]^{3 \times H \times W}
+\]</div>
+<h2 id="_2">随机退化<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>JDD 默认不保存固定 noisy 数据集，而是在训练过程中在线采样 RGB patch，并通过 <code>raw-sim</code> 的公开 batch 接口生成 RAW 退化数据。</p>
+<p>每个 sample 会执行：</p>
+<ol>
+<li>随机选择一张 RGB 图像。</li>
+<li>随机裁剪 <code>data.patch_size</code> 大小的 patch。</li>
+<li>从 camera module 中随机采样 analog gain。</li>
+<li>将 sRGB 转成 clean linear RGB target。</li>
+<li>调用 <code>raw-sim</code> pipeline 生成 3 帧 noisy RAW。</li>
+<li>基于同一套噪声标定参数生成 noise map。</li>
+</ol>
+<p>这样每个 epoch 都会看到不同 crop、不同噪声随机数和不同 analog gain。</p>
+<h2 id="analog-gain">Analog Gain 采样<a class="headerlink" href="#analog-gain" title="Permanent link">&para;</a></h2>
+<p>camera JSON 中的 <code>camera.analog_gain</code> 可以是标量、二元范围，或者包含 <code>min</code> 和 <code>max</code> 的对象。JDD 根据 <code>camera.analog_gain_sampling</code> 选择采样分布。</p>
+<p>均匀采样：</p>
+<div class="arithmatex">\[
+AG = AG_{min} + u(AG_{max} - AG_{min}), \quad u \sim \mathcal{U}(0,1)
+\]</div>
+<p>对数均匀采样：</p>
+<div class="arithmatex">\[
+AG = \exp\left(\log AG_{min} + u(\log AG_{max}-\log AG_{min})\right)
+\]</div>
+<p>当前 ISO 约定继承自 <code>raw-sim</code>：</p>
+<div class="arithmatex">\[
+ISO = 100 \cdot AG
+\]</div>
+<p>由于 Poisson-Gaussian 噪声模型会随 analog gain 缩放，随机 gain 采样能让模型覆盖更宽的噪声强度，而不是只学习某一个固定 ISO。</p>
+<h2 id="burst-restoration">多帧 Burst Restoration<a class="headerlink" href="#burst-restoration" title="Permanent link">&para;</a></h2>
+<p>对于同一个 RGB patch，JDD 会从同一个 clean signal 合成 3 帧 noisy RAW：</p>
+<div class="arithmatex">\[
+R_t^{noisy} = \mathcal{D}(I_{srgb}; AG, \epsilon_t), \quad t \in \{1,2,3\}
+\]</div>
+<p>其中 <span class="arithmatex">\(\mathcal{D}\)</span> 是 <code>raw-sim</code> 退化 pipeline，<span class="arithmatex">\(\epsilon_t\)</span> 是每一帧独立的噪声随机种子。</p>
+<p>这 3 帧共享同一个 crop、camera 参数、analog gain、CFA 排列和 lens filter，但噪声采样相互独立。这样网络可以利用 burst 冗余做去噪，同时学习去马赛克和 RAW 到 linear RGB 的恢复。</p>
+<h2 id="_3">训练数据路径<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>当 <code>data.simulate_on_device</code> 开启时，DataLoader 只返回：</p>
+<ul>
+<li>RGB patch</li>
+<li>random seed</li>
+<li>sampled analog gain</li>
+<li>metadata</li>
+</ul>
+<p>训练循环中再调用：</p>
+<pre><code class="language-python">from raw_sim.batch import simulate_burst_batch_on_device
+
+x, y = simulate_burst_batch_on_device(
+    rgb=batch[&quot;rgb&quot;],
+    analog_gain=batch[&quot;analog_gain&quot;],
+    seed=batch[&quot;seed&quot;],
+    camera=camera,
+    frames=3,
+    noise_map_reduce=&quot;mean&quot;,
+)
+</code></pre>
+<p>这样 JDD 的退化逻辑只依赖 <code>raw-sim</code> 接口，而不是在 JDD 内部复制一份模拟代码。后续 <code>raw-sim</code> 中的 lens PSF、CFA packing 或噪声模型更新，会自动进入 JDD 训练。</p>
+<h2 id="_4">模型结构<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h2>
+<p>当前网络是一个轻量 NAFNet-style restoration model：</p>
+<pre><code class="language-text">packed RAW burst + noise map
+  -&gt; input convolution
+  -&gt; NAF blocks
+  -&gt; output convolution
+  -&gt; PixelShuffle CFA upsampling
+  -&gt; clean linear RGB
+</code></pre>
+<p>PixelShuffle 的上采样倍率由 CFA 类型决定：</p>
+<table>
+<thead>
+<tr>
+<th>CFA 类型</th>
+<th style="text-align: right;">Packed scale</th>
+<th style="text-align: right;">每帧 RAW channel</th>
+<th style="text-align: right;">3 帧输入 channel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bayer / binning</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">13</td>
+</tr>
+<tr>
+<td>Quad Bayer</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">49</td>
+</tr>
+</tbody>
+</table>
+<h2 id="_5">训练命令<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">cd JDD
+bash ./scripts/train.sh --config ./configs/train_JDD_patch128_3f_iter100000.json
+</code></pre>
+<p>常用训练字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data.simulate_on_device</code></td>
+<td>使用 GPU 侧 <code>raw-sim</code> batch 退化。</td>
+</tr>
+<tr>
+<td><code>data.frames</code></td>
+<td>burst 帧数。当前 JDD 期望为 3。</td>
+</tr>
+<tr>
+<td><code>data.noise_map_reduce</code></td>
+<td>将多通道噪声图合成为输入 noise map 的方式。</td>
+</tr>
+<tr>
+<td><code>train.batch_size</code></td>
+<td>每 step 的 RGB patch 数量。</td>
+</tr>
+<tr>
+<td><code>train.amp</code></td>
+<td>CUDA 混合精度训练。</td>
+</tr>
+<tr>
+<td><code>train.channels_last</code></td>
+<td>CUDA channels-last memory format。</td>
+</tr>
+<tr>
+<td><code>train.val_every</code></td>
+<td>validation 间隔。</td>
+</tr>
+</tbody>
+</table>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../raw-sim/" class="btn btn-neutral float-left" title="raw-sim"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../hdr/" class="btn btn-neutral float-right" title="HDR">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="None" class="fa fa-code-fork" style="color: #fcfcfc"> Open-AISP</a>
+        </span>
+    
+    
+      <span><a href="../raw-sim/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../hdr/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "../..";</script>
+    <script src="../../js/theme_extra.js"></script>
+    <script src="../../js/theme.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Open-AISP Contributors" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>JDD - Open-AISP</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "JDD";
+        var mkdocs_page_input_path = "jdd/index.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Open-AISP
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../raw-sim/">raw-sim</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">JDD</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#task-definition">Task Definition</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#random-degradation">Random Degradation</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#analog-gain-sampling">Analog Gain Sampling</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#burst-image-restoration">Burst Image Restoration</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#training-data-path">Training Data Path</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#model">Model</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#main-training-command">Main Training Command</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../hdr/">HDR</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../aitm/">AITM</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../diffipe/">DiffIPE</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Open-AISP</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">JDD</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="jdd">JDD<a class="headerlink" href="#jdd" title="Permanent link">&para;</a></h1>
+<p>JDD is the joint denoise and demosaic module. It learns the mapping from noisy packed RAW bursts to clean linear RGB:</p>
+<div class="arithmatex">\[
+f_\theta: \{R_t^{noisy}\}_{t=1}^{T}, M_\sigma \rightarrow I_{lin}
+\]</div>
+<p>where <span class="arithmatex">\(T=3\)</span> in the current training setup, <span class="arithmatex">\(R_t^{noisy}\)</span> are independently degraded RAW frames, and <span class="arithmatex">\(M_\sigma\)</span> is a noise standard-deviation map produced by <code>raw-sim</code>.</p>
+<h2 id="task-definition">Task Definition<a class="headerlink" href="#task-definition" title="Permanent link">&para;</a></h2>
+<p>The input is a packed RAW burst plus one noise-map channel:</p>
+<div class="arithmatex">\[
+X = \operatorname{concat}(R_1, R_2, R_3, M_\sigma)
+\]</div>
+<p>For Bayer or 2x2 binning RAW, each frame has 4 packed channels, so:</p>
+<div class="arithmatex">\[
+C_{in}=3 \times 4 + 1 = 13
+\]</div>
+<p>For Quad Bayer RAW, each frame has 16 packed channels:</p>
+<div class="arithmatex">\[
+C_{in}=3 \times 16 + 1 = 49
+\]</div>
+<p>The target is clean linear RGB at the full spatial resolution:</p>
+<div class="arithmatex">\[
+Y = I_{lin} \in [0,1]^{3 \times H \times W}
+\]</div>
+<h2 id="random-degradation">Random Degradation<a class="headerlink" href="#random-degradation" title="Permanent link">&para;</a></h2>
+<p>JDD does not store a fixed noisy dataset by default. During training, it samples RGB patches and generates RAW degradation online through the public <code>raw-sim</code> batch interface.</p>
+<p>For each sample:</p>
+<ol>
+<li>Randomly choose an RGB source image.</li>
+<li>Randomly crop a patch with size <code>data.patch_size</code>.</li>
+<li>Sample analog gain from the camera module.</li>
+<li>Convert sRGB to clean linear RGB target.</li>
+<li>Run the <code>raw-sim</code> pipeline to produce three noisy RAW frames.</li>
+<li>Build a noise map from the same calibrated noise model.</li>
+</ol>
+<p>This makes every epoch see different crop positions, noise realizations, and analog gain values.</p>
+<h2 id="analog-gain-sampling">Analog Gain Sampling<a class="headerlink" href="#analog-gain-sampling" title="Permanent link">&para;</a></h2>
+<p>The camera JSON can define <code>camera.analog_gain</code> as a scalar, a two-element range, or an object with <code>min</code> and <code>max</code>. JDD uses <code>camera.analog_gain_sampling</code> to choose the sampling distribution.</p>
+<p>Uniform sampling:</p>
+<div class="arithmatex">\[
+AG = AG_{min} + u(AG_{max} - AG_{min}), \quad u \sim \mathcal{U}(0,1)
+\]</div>
+<p>Log-uniform sampling:</p>
+<div class="arithmatex">\[
+AG = \exp\left(\log AG_{min} + u(\log AG_{max}-\log AG_{min})\right)
+\]</div>
+<p>The current ISO convention is inherited from <code>raw-sim</code>:</p>
+<div class="arithmatex">\[
+ISO = 100 \cdot AG
+\]</div>
+<p>Because the Poisson-Gaussian noise model scales with analog gain, random gain sampling exposes the model to a broad noise range instead of a single fixed ISO.</p>
+<h2 id="burst-image-restoration">Burst Image Restoration<a class="headerlink" href="#burst-image-restoration" title="Permanent link">&para;</a></h2>
+<p>For each RGB patch, JDD synthesizes three noisy RAW frames from the same clean signal:</p>
+<div class="arithmatex">\[
+R_t^{noisy} = \mathcal{D}(I_{srgb}; AG, \epsilon_t), \quad t \in \{1,2,3\}
+\]</div>
+<p>where <span class="arithmatex">\(\mathcal{D}\)</span> is the <code>raw-sim</code> degradation pipeline and <span class="arithmatex">\(\epsilon_t\)</span> is the frame-specific random noise seed.</p>
+<p>The three frames share the same crop, camera parameters, analog gain, CFA layout, and lens filter, but use independent noise samples. This trains the network to use burst redundancy for denoising while also learning demosaicing and RAW-to-linear-RGB reconstruction.</p>
+<h2 id="training-data-path">Training Data Path<a class="headerlink" href="#training-data-path" title="Permanent link">&para;</a></h2>
+<p>When <code>data.simulate_on_device</code> is enabled, the DataLoader only returns:</p>
+<ul>
+<li>RGB patch</li>
+<li>random seed</li>
+<li>sampled analog gain</li>
+<li>metadata</li>
+</ul>
+<p>The training loop then calls:</p>
+<pre><code class="language-python">from raw_sim.batch import simulate_burst_batch_on_device
+
+x, y = simulate_burst_batch_on_device(
+    rgb=batch[&quot;rgb&quot;],
+    analog_gain=batch[&quot;analog_gain&quot;],
+    seed=batch[&quot;seed&quot;],
+    camera=camera,
+    frames=3,
+    noise_map_reduce=&quot;mean&quot;,
+)
+</code></pre>
+<p>This keeps the JDD degradation path coupled to <code>raw-sim</code> instead of duplicating simulation logic inside JDD. Updates to lens PSF, CFA packing, or noise modeling in <code>raw-sim</code> automatically flow into JDD training.</p>
+<h2 id="model">Model<a class="headerlink" href="#model" title="Permanent link">&para;</a></h2>
+<p>The current network is a compact NAFNet-style restoration model:</p>
+<pre><code class="language-text">packed RAW burst + noise map
+  -&gt; input convolution
+  -&gt; NAF blocks
+  -&gt; output convolution
+  -&gt; PixelShuffle CFA upsampling
+  -&gt; clean linear RGB
+</code></pre>
+<p>The PixelShuffle scale follows the CFA type:</p>
+<table>
+<thead>
+<tr>
+<th>CFA type</th>
+<th style="text-align: right;">Packed scale</th>
+<th style="text-align: right;">RAW channels per frame</th>
+<th style="text-align: right;">Input channels for 3 frames</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bayer / binning</td>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">13</td>
+</tr>
+<tr>
+<td>Quad Bayer</td>
+<td style="text-align: right;">4</td>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">49</td>
+</tr>
+</tbody>
+</table>
+<h2 id="main-training-command">Main Training Command<a class="headerlink" href="#main-training-command" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">cd JDD
+bash ./scripts/train.sh --config ./configs/train_JDD_patch128_3f_iter100000.json
+</code></pre>
+<p>Useful training fields:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data.simulate_on_device</code></td>
+<td>Use GPU-side <code>raw-sim</code> batch degradation.</td>
+</tr>
+<tr>
+<td><code>data.frames</code></td>
+<td>Number of burst frames. Current JDD expects 3.</td>
+</tr>
+<tr>
+<td><code>data.noise_map_reduce</code></td>
+<td>Reduces per-channel noise maps before appending the map channel.</td>
+</tr>
+<tr>
+<td><code>train.batch_size</code></td>
+<td>Number of RGB patches per step.</td>
+</tr>
+<tr>
+<td><code>train.amp</code></td>
+<td>Mixed-precision training on CUDA.</td>
+</tr>
+<tr>
+<td><code>train.channels_last</code></td>
+<td>Channels-last memory format for CUDA kernels.</td>
+</tr>
+<tr>
+<td><code>train.val_every</code></td>
+<td>Validation interval.</td>
+</tr>
+</tbody>
+</table>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="../raw-sim/" class="btn btn-neutral float-left" title="raw-sim"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../hdr/" class="btn btn-neutral float-right" title="HDR">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="None" class="fa fa-code-fork" style="color: #fcfcfc"> Open-AISP</a>
+        </span>
+    
+    
+      <span><a href="../raw-sim/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../hdr/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

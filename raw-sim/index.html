@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="author" content="Open-AISP Contributors" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>raw-sim - Open-AISP</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "raw-sim";
+        var mkdocs_page_input_path = "raw-sim/index.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Open-AISP
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="#">raw-sim</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#srgb-to-noisy-raw-pipeline">sRGB to Noisy RAW Pipeline</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#1-inverse-gamma">1. Inverse Gamma</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#2-ccm">2. CCM</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#3-awb">3. AWB</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#4-psf-blur-and-guided-filter">4. PSF Blur and Guided Filter</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#5-sensor-level-mapping">5. Sensor Level Mapping</a>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#6-cfa-sampling">6. CFA Sampling</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#bayer-and-2x2-binning">Bayer and 2x2 Binning</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#quad-bayer-4x4">Quad Bayer 4x4</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#7-poisson-gaussian-noise">7. Poisson-Gaussian Noise</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#analog-gain-and-iso">Analog Gain and ISO</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#batch-interface">Batch Interface</a>
+    </li>
+    </ul>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../jdd/">JDD</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../hdr/">HDR</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../aitm/">AITM</a>
+                </li>
+              </ul>
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="../diffipe/">DiffIPE</a>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Open-AISP</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+      <li class="breadcrumb-item active">raw-sim</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="raw-sim">raw-sim<a class="headerlink" href="#raw-sim" title="Permanent link">&para;</a></h1>
+<p><code>raw-sim</code> simulates the early camera pipeline in reverse: it starts from a clean sRGB image and produces noisy packed RAW plus a clean linear RGB target. This module is the degradation source used by downstream learning modules such as JDD.</p>
+<h2 id="srgb-to-noisy-raw-pipeline">sRGB to Noisy RAW Pipeline<a class="headerlink" href="#srgb-to-noisy-raw-pipeline" title="Permanent link">&para;</a></h2>
+<p>For each input sRGB image or crop, <code>raw-sim</code> applies:</p>
+<pre><code class="language-text">sRGB
+  -&gt; inverse gamma
+  -&gt; inverse CCM
+  -&gt; inverse AWB
+  -&gt; lens PSF / filter
+  -&gt; sensor level mapping
+  -&gt; CFA sampling and packing
+  -&gt; Poisson-Gaussian noise
+  -&gt; noisy packed RAW
+</code></pre>
+<p>The clean target is the linear RGB image after inverse gamma. Lens blur, CFA sampling, and sensor noise only affect the RAW branch.</p>
+<h2 id="1-inverse-gamma">1. Inverse Gamma<a class="headerlink" href="#1-inverse-gamma" title="Permanent link">&para;</a></h2>
+<p>The input image is normalized to <span class="arithmatex">\([0, 1]\)</span>. The clean linear RGB target is computed with:</p>
+<div class="arithmatex">\[
+I_{lin} = \operatorname{clip}(I_{srgb}, 0, 1)^\gamma
+\]</div>
+<p>The default examples use <span class="arithmatex">\(\gamma = 2.2\)</span>.</p>
+<h2 id="2-ccm">2. CCM<a class="headerlink" href="#2-ccm" title="Permanent link">&para;</a></h2>
+<p>The camera JSON stores a color correction matrix that maps camera RGB to linear RGB:</p>
+<div class="arithmatex">\[
+I_{lin} = I_{cam} C^\top
+\]</div>
+<p>To unprocess sRGB into camera RGB, <code>raw-sim</code> applies the inverse transform:</p>
+<div class="arithmatex">\[
+I_{cam}' = I_{lin}(C^{-1})^\top
+\]</div>
+<p>where <span class="arithmatex">\(C\)</span> is <code>ccm.matrix</code>.</p>
+<h2 id="3-awb">3. AWB<a class="headerlink" href="#3-awb" title="Permanent link">&para;</a></h2>
+<p>White balance is inverted by dividing camera RGB by the configured per-channel gains:</p>
+<div class="arithmatex">\[
+I_{cam,c} = \frac{I_{cam,c}'}{g_c}, \quad c \in \{R,G,B\}
+\]</div>
+<p>The configuration fields are <code>awb.red_gain</code>, <code>awb.green_gain</code>, and <code>awb.blue_gain</code>.</p>
+<h2 id="4-psf-blur-and-guided-filter">4. PSF Blur and Guided Filter<a class="headerlink" href="#4-psf-blur-and-guided-filter" title="Permanent link">&para;</a></h2>
+<p>The <code>lens_psf</code> block is applied in camera RGB before sensor mapping and CFA sampling.</p>
+<p>Gaussian blur uses a normalized Gaussian kernel:</p>
+<div class="arithmatex">\[
+K(x,y) = \frac{1}{Z}\exp\left(-\frac{x^2 + y^2}{2\sigma^2}\right)
+\]</div>
+<p>Example:</p>
+<pre><code class="language-json">{
+  &quot;lens_psf&quot;: {
+    &quot;enabled&quot;: true,
+    &quot;kernel&quot;: &quot;gaussian&quot;,
+    &quot;kernel_size&quot;: 5,
+    &quot;sigma&quot;: 1.0
+  }
+}
+</code></pre>
+<p>Guided filtering is also supported:</p>
+<pre><code class="language-json">{
+  &quot;lens_psf&quot;: {
+    &quot;enabled&quot;: true,
+    &quot;kernel&quot;: &quot;guided&quot;,
+    &quot;kernel_size&quot;: 5,
+    &quot;eps&quot;: 0.001
+  }
+}
+</code></pre>
+<p>For each local window <span class="arithmatex">\(\omega_k\)</span>, guided filtering assumes:</p>
+<div class="arithmatex">\[
+q_i = a_k G_i + b_k, \quad i \in \omega_k
+\]</div>
+<p>with:</p>
+<div class="arithmatex">\[
+a_k = \frac{\operatorname{cov}_{\omega_k}(G, p)}
+{\operatorname{var}_{\omega_k}(G) + \epsilon},
+\qquad
+b_k = \bar{p}_k - a_k \bar{G}_k
+\]</div>
+<p><code>raw-sim</code> uses luma as the guide:</p>
+<div class="arithmatex">\[
+G = 0.299R + 0.587G + 0.114B
+\]</div>
+<p>This provides edge-aware smoothing compared with pure Gaussian blur.</p>
+<h2 id="5-sensor-level-mapping">5. Sensor Level Mapping<a class="headerlink" href="#5-sensor-level-mapping" title="Permanent link">&para;</a></h2>
+<p>Camera RGB is mapped into the sensor digital range:</p>
+<div class="arithmatex">\[
+S = B + I_{cam}(W - B)
+\]</div>
+<p>where <span class="arithmatex">\(B\)</span> is black level and <span class="arithmatex">\(W\)</span> is white level after normalization by the maximum DN:</p>
+<div class="arithmatex">\[
+DN_{max} = 2^{bitdepth} - 1
+\]</div>
+<p>If <code>black_level</code> is <code>"auto"</code>, the default 10-bit reference is 32 DN:</p>
+<table>
+<thead>
+<tr>
+<th>Bit depth</th>
+<th>Auto black level</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10</td>
+<td>32</td>
+</tr>
+<tr>
+<td>12</td>
+<td>128</td>
+</tr>
+<tr>
+<td>14</td>
+<td>512</td>
+</tr>
+</tbody>
+</table>
+<p>If <code>quantize</code> is enabled, values are rounded to the configured bit depth.</p>
+<h2 id="6-cfa-sampling">6. CFA Sampling<a class="headerlink" href="#6-cfa-sampling" title="Permanent link">&para;</a></h2>
+<p><code>raw-sim</code> supports Bayer/binning 2x2 packing and Quad Bayer 4x4 packing.</p>
+<h3 id="bayer-and-2x2-binning">Bayer and 2x2 Binning<a class="headerlink" href="#bayer-and-2x2-binning" title="Permanent link">&para;</a></h3>
+<p>For <code>RGGB</code>, the 2x2 tile is:</p>
+<pre><code class="language-text">R   Gr
+Gb  B
+</code></pre>
+<p>Packed RAW has shape:</p>
+<div class="arithmatex">\[
+H \times W \times 3 \rightarrow \frac{H}{2} \times \frac{W}{2} \times 4
+\]</div>
+<p>The packed channel order is:</p>
+<pre><code class="language-text">[R, Gr, Gb, B]
+</code></pre>
+<p>For <code>cfa.type = "binning"</code>, each packed channel can be locally filtered by a 2x2 window. <code>binning_operation: "average"</code> keeps the signal scale comparable to full readout, while <code>"sum"</code> accumulates the local signal.</p>
+<h3 id="quad-bayer-4x4">Quad Bayer 4x4<a class="headerlink" href="#quad-bayer-4x4" title="Permanent link">&para;</a></h3>
+<p>Quad Bayer repeats each Bayer color into a 2x2 same-color block. For <code>RGGB</code>, the 4x4 tile is:</p>
+<pre><code class="language-text">R   R   Gr  Gr
+R   R   Gr  Gr
+Gb  Gb  B   B
+Gb  Gb  B   B
+</code></pre>
+<p>Packed RAW has shape:</p>
+<div class="arithmatex">\[
+H \times W \times 3 \rightarrow \frac{H}{4} \times \frac{W}{4} \times 16
+\]</div>
+<p>The channel order is raster order over the 4x4 tile: <code>ch0</code> to <code>ch15</code>.</p>
+<h2 id="7-poisson-gaussian-noise">7. Poisson-Gaussian Noise<a class="headerlink" href="#7-poisson-gaussian-noise" title="Permanent link">&para;</a></h2>
+<p>The active signal subtracts black level and normalizes by the active sensor range:</p>
+<div class="arithmatex">\[
+x = \operatorname{clip}\left(\frac{S - B}{W - B}, 0, 1\right)
+\]</div>
+<p>The per-channel noise variance is:</p>
+<div class="arithmatex">\[
+\sigma^2(x, c) = K_c x + \sigma_{read,c}^2
+\]</div>
+<p>The noisy RAW value is sampled with a Gaussian approximation to Poisson-Gaussian noise:</p>
+<div class="arithmatex">\[
+\tilde{S}_c = S_c + \mathcal{N}\left(0, \sigma^2(x,c)\right)
+\]</div>
+<p>and then clipped to <span class="arithmatex">\([0,1]\)</span>.</p>
+<h3 id="analog-gain-and-iso">Analog Gain and ISO<a class="headerlink" href="#analog-gain-and-iso" title="Permanent link">&para;</a></h3>
+<p>The simulator defines:</p>
+<div class="arithmatex">\[
+ISO = 100 \cdot AG
+\]</div>
+<p>where <span class="arithmatex">\(AG\)</span> is <code>camera.analog_gain</code>.</p>
+<p>Noise calibration is stored at <code>base_analog_gain</code>. Runtime parameters are scaled by:</p>
+<div class="arithmatex">\[
+r = \frac{AG}{AG_{base}}
+\]</div>
+<div class="arithmatex">\[
+K_c(AG) = K_{c,base} \cdot r^{\alpha_{shot}}
+\]</div>
+<div class="arithmatex">\[
+\sigma_{read,c}(AG) = \sigma_{read,c,base} \cdot r^{\alpha_{read}}
+\]</div>
+<p>The exponents are <code>shot_noise_gain_exponent</code> and <code>read_noise_gain_exponent</code>.</p>
+<p>For binned readout, <code>raw-sim</code> also adjusts the effective shot and read noise according to the binning type and whether the binned value is averaged or summed.</p>
+<h2 id="batch-interface">Batch Interface<a class="headerlink" href="#batch-interface" title="Permanent link">&para;</a></h2>
+<p>The public batch interface is:</p>
+<pre><code class="language-python">from raw_sim.batch import srgb_to_raw_burst_batch
+
+x, y = srgb_to_raw_burst_batch(
+    rgb=batch_rgb,
+    camera=camera,
+    analog_gain=analog_gain,
+    seed=seed,
+    frames=3,
+    noise_map_reduce=&quot;mean&quot;,
+)
+</code></pre>
+<p>It returns:</p>
+<ul>
+<li><code>x</code>: noisy RAW burst and noise map, shape <code>(B, frames * raw_channels + 1, H/scale, W/scale)</code>.</li>
+<li><code>y</code>: clean linear RGB target, shape <code>(B, 3, H, W)</code>.</li>
+</ul>
+<p>JDD uses this interface directly, so updates to <code>raw-sim</code> degradation are shared by training.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href=".." class="btn btn-neutral float-left" title="Home"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../jdd/" class="btn btn-neutral float-right" title="JDD">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+        <span>
+          <a href="None" class="fa fa-code-fork" style="color: #fcfcfc"> Open-AISP</a>
+        </span>
+    
+    
+      <span><a href=".." style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../jdd/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
