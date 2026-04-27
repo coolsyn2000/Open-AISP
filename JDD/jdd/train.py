@@ -13,7 +13,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader
 
-from .data import make_dataset_from_config
+from .data import make_dataset_from_config, make_rgb_patch_dataset_from_config
 from .losses import CharbonnierLoss
 from .metrics import MetricComputer
 from .model import build_model, infer_raw_channels
@@ -27,6 +27,7 @@ except Exception:
 
 ensure_raw_sim_importable()
 
+from raw_sim.batch import simulate_burst_batch_on_device  # noqa: E402
 from raw_sim.config import load_camera_json  # noqa: E402
 
 
@@ -40,6 +41,30 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _to_device(batch: dict[str, Any], device: torch.device) -> tuple[torch.Tensor, torch.Tensor]:
     return batch["input"].to(device, non_blocking=True), batch["target"].to(device, non_blocking=True)
+
+
+def _prepare_batch(
+    batch: dict[str, Any],
+    camera: dict[str, Any],
+    config: dict[str, Any],
+    device: torch.device,
+    channels_last: bool,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if "input" in batch:
+        x, y = _to_device(batch, device)
+    else:
+        x, y = simulate_burst_batch_on_device(
+            rgb=batch["rgb"].to(device, non_blocking=True),
+            analog_gain=batch["analog_gain"].to(device, non_blocking=True),
+            seed=batch["seed"].to(device, non_blocking=True),
+            camera=camera,
+            frames=int(config.get("data", {}).get("frames", 3)),
+            noise_map_reduce=config.get("data", {}).get("noise_map_reduce", "mean"),
+        )
+    if channels_last:
+        x = x.contiguous(memory_format=torch.channels_last)
+        y = y.contiguous(memory_format=torch.channels_last)
+    return x, y
 
 
 def init_data_worker(worker_id: int, torch_threads: int = 1) -> None:
@@ -68,6 +93,14 @@ def make_loader(dataset: torch.utils.data.Dataset, config: dict[str, Any], devic
 
 
 def collate_batch(samples: list[dict[str, Any]]) -> dict[str, Any]:
+    if "rgb" in samples[0]:
+        return {
+            "rgb": torch.stack([s["rgb"] for s in samples], dim=0),
+            "seed": torch.stack([s["seed"] for s in samples], dim=0),
+            "iso": torch.stack([s["iso"] for s in samples], dim=0),
+            "analog_gain": torch.stack([s["analog_gain"] for s in samples], dim=0),
+            "metadata": [s["metadata"] for s in samples],
+        }
     return {
         "input": torch.stack([s["input"] for s in samples], dim=0),
         "target": torch.stack([s["target"] for s in samples], dim=0),
@@ -143,6 +176,9 @@ def validate(
     device: torch.device,
     max_batches: int,
     use_amp: bool,
+    camera: dict[str, Any],
+    config: dict[str, Any],
+    channels_last: bool,
 ) -> dict[str, float]:
     model.eval()
     loss_total = 0.0
@@ -154,7 +190,7 @@ def validate(
     for batch_idx, batch in enumerate(loader):
         if batch_idx >= max_batches:
             break
-        x, y = _to_device(batch, device)
+        x, y = _prepare_batch(batch, camera, config, device, channels_last)
         with torch.amp.autocast(device_type=device.type, enabled=use_amp):
             pred = model(x)
         loss_total += float(criterion(pred, y).item())
@@ -193,6 +229,11 @@ def train(config: dict[str, Any], resume: str | None = None) -> None:
 
     camera = load_camera_json(config["camera_module_json"])
     model = build_model(config, infer_raw_channels(camera), cfa_scale(camera)).to(device)
+    channels_last = bool(config["train"].get("channels_last", False)) and device.type == "cuda"
+    if channels_last:
+        model = model.to(memory_format=torch.channels_last)
+    if bool(config["train"].get("compile", False)) and hasattr(torch, "compile"):
+        model = torch.compile(model, mode=str(config["train"].get("compile_mode", "default")))
     criterion = CharbonnierLoss(float(config.get("loss", {}).get("charbonnier_eps", 1e-3)))
     metrics = MetricComputer(device, use_lpips=bool(config.get("metrics", {}).get("lpips", True)))
     optimizer = torch.optim.AdamW(
@@ -212,13 +253,15 @@ def train(config: dict[str, Any], resume: str | None = None) -> None:
         start_epoch = int(ckpt.get("epoch", 0))
         step = int(ckpt.get("step", 0))
 
-    train_dataset = make_dataset_from_config(config, split="train")
+    simulate_on_device = bool(config.get("data", {}).get("simulate_on_device", False)) and device.type == "cuda"
+    dataset_factory = make_rgb_patch_dataset_from_config if simulate_on_device else make_dataset_from_config
+    train_dataset = dataset_factory(config, split="train")
     train_loader = make_loader(train_dataset, config, device, shuffle=bool(config["train"].get("shuffle_images", False)), drop_last=True)
 
     val_loader = None
     val_cfg = config.get("data", {}).get("val", {})
     if val_cfg.get("image_root") or val_cfg.get("image_roots"):
-        val_dataset = make_dataset_from_config(config, split="val")
+        val_dataset = dataset_factory(config, split="val")
         val_loader = make_loader(val_dataset, config, device, shuffle=False, drop_last=False)
 
     out_dir = Path(config["train"].get("output_dir", "runs/jdd"))
@@ -232,12 +275,15 @@ def train(config: dict[str, Any], resume: str | None = None) -> None:
         f"num_workers={config['train'].get('num_workers', 0)} "
         f"persistent_workers={config['train'].get('persistent_workers', True)} "
         f"prefetch_factor={config['train'].get('prefetch_factor', 4)} "
+        f"simulate_on_device={simulate_on_device} "
+        f"channels_last={channels_last} "
         f"camera_module_json={config['camera_module_json']}",
     )
 
     iterations = int(config["train"].get("iterations", config["train"].get("max_iterations", 100000)))
     log_every = int(config["train"].get("log_every", 20))
     save_every = int(config["train"].get("save_every", 500))
+    latest_every = int(config["train"].get("latest_every", save_every))
     val_every = int(config["train"].get("val_every", 500))
     max_val_batches = int(config["train"].get("max_val_batches", 10))
 
@@ -248,10 +294,12 @@ def train(config: dict[str, Any], resume: str | None = None) -> None:
     try:
         while step < iterations:
             epoch += 1
+            batch_end = time.time()
             for batch in train_loader:
                 if step >= iterations:
                     break
-                x, y = _to_device(batch, device)
+                data_time = time.time() - batch_end
+                x, y = _prepare_batch(batch, camera, config, device, channels_last)
                 with torch.amp.autocast(device_type=device.type, enabled=use_amp):
                     pred = model(x)
                     loss = criterion(pred, y)
@@ -263,6 +311,8 @@ def train(config: dict[str, Any], resume: str | None = None) -> None:
                 scaler.step(optimizer)
                 scaler.update()
                 step += 1
+                iter_time = time.time() - batch_end
+                batch_end = time.time()
 
                 if pbar_ctx is not None:
                     pbar_ctx.update(1)
@@ -270,7 +320,11 @@ def train(config: dict[str, Any], resume: str | None = None) -> None:
 
                 if step % log_every == 0:
                     elapsed = max(time.time() - t0, 1e-6)
-                    message = f"train epoch={epoch} step={step} loss={loss.item():.6f} samples_per_sec={step * x.shape[0] / elapsed:.2f}"
+                    message = (
+                        f"train epoch={epoch} step={step} loss={loss.item():.6f} "
+                        f"samples_per_sec={step * x.shape[0] / elapsed:.2f} "
+                        f"last_data_time={data_time:.4f} last_iter_time={iter_time:.4f}"
+                    )
                     append_log(log_path, message)
                     if pbar_ctx is None:
                         print(message)
@@ -281,7 +335,7 @@ def train(config: dict[str, Any], resume: str | None = None) -> None:
                     append_log(log_path, f"checkpoint step={step} path={ckpt_path}")
 
                 if val_loader is not None and step % val_every == 0:
-                    val = validate(model, val_loader, criterion, metrics, device, max_val_batches, use_amp)
+                    val = validate(model, val_loader, criterion, metrics, device, max_val_batches, use_amp, camera, config, channels_last)
                     message = (
                         f"val epoch={epoch} step={step} loss={val['loss']:.6f} "
                         f"psnr={val['psnr']:.4f} ssim={val['ssim']:.6f} lpips={val['lpips']:.6f}"
@@ -292,8 +346,11 @@ def train(config: dict[str, Any], resume: str | None = None) -> None:
                     else:
                         print(message)
 
-            save_checkpoint(out_dir / "latest.pth", model, optimizer, step, epoch, config)
+            if step > 0 and step % latest_every == 0:
+                save_checkpoint(out_dir / "latest.pth", model, optimizer, step, epoch, config)
     finally:
+        if step > 0:
+            save_checkpoint(out_dir / "latest.pth", model, optimizer, step, epoch, config)
         if pbar_ctx is not None:
             pbar_ctx.close()
 

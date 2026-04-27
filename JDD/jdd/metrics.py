@@ -7,6 +7,8 @@ import torch.nn.functional as F
 
 
 def psnr(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-10) -> torch.Tensor:
+    pred = pred.float()
+    target = target.float()
     mse = (pred.clamp(0, 1) - target.clamp(0, 1)).square().flatten(1).mean(dim=1)
     return (-10.0 * torch.log10(mse.clamp_min(eps))).mean()
 
@@ -20,8 +22,8 @@ def _ssim_window(channels: int, dtype: torch.dtype, device: torch.device) -> tor
 
 
 def ssim(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    pred = pred.clamp(0, 1)
-    target = target.clamp(0, 1)
+    pred = pred.float().clamp(0, 1)
+    target = target.float().clamp(0, 1)
     channels = pred.shape[1]
     window = _ssim_window(channels, pred.dtype, pred.device)
     mu_x = F.conv2d(pred, window, padding=5, groups=channels)
@@ -52,13 +54,13 @@ class MetricComputer:
                 self.lpips_model = lpips.LPIPS(net="alex").to(device).eval()
                 for param in self.lpips_model.parameters():
                     param.requires_grad_(False)
-            except Exception:
-                self.lpips_model = None
+            except Exception as exc:
+                raise RuntimeError("LPIPS is enabled but failed to initialize. Install/fix the `lpips` package or set metrics.lpips=false.") from exc
 
     @torch.no_grad()
     def __call__(self, pred: torch.Tensor, target: torch.Tensor) -> MetricResult:
-        pred = pred.clamp(0, 1)
-        target = target.clamp(0, 1)
+        pred = pred.float().clamp(0, 1)
+        target = target.float().clamp(0, 1)
         lpips_value = float("nan")
         if self.lpips_model is not None:
             lpips_value = float(self.lpips_model(pred * 2 - 1, target * 2 - 1).mean().item())

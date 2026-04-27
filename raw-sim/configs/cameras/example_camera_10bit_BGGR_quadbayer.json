@@ -33,7 +33,7 @@
   },
   "cfa": {
     "type": "quadbayer",
-    "pattern": "RGGB"
+    "pattern": "BGGR"
   },
   "readout": {
     "mode": "full"

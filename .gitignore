@@ -2,6 +2,6 @@
 *__pycache__/
 *.toml
 /.vscode
-/JDD/runs/
 /raw-sim/train_pairs/
+/JDD/runs
 *vscode

@@ -6,6 +6,20 @@
 
 **Open-AISP** is a toy-level, and open-source AI-ISP (Artificial Intelligence Image Signal Processor) pipeline framework for beginners. The overall workflow of this AISP aligns with standard industry practices for image signals processing. It aims to provide an end-to-end solution ranging from realistic raw image degradation simulation to neural image reconstruction and enhancement.
 
+## 📚 Documentation
+
+| Language | Entry |
+| :---: | :--- |
+| 🌐 English | [English Documentation](./docs/index.md) |
+| 🇨🇳 中文 | [中文文档](./docs/index.zh.md) |
+
+## 🗓️ Timeline
+
+| Date | Update |
+| :--- | :--- |
+| 2026-04-27 | Add bilingual Mkdocs documentation for Open-AISP|
+| 2026-04-25 | Init repo with `raw-sim` and `JDD` modules|
+
 ---
 
 ## 🧩 Core Modules
@@ -32,15 +46,15 @@ The JDD module handles the early-stage core reconstruction tasks in the ISP pipe
 | :---: | :---: | :---: |
 | <img src="./JDD/assets/opencv_demosaic.png" width="400" /> | <img src="./JDD/assets/pred.png" width="400" /> | <img src="./JDD/assets/gt.png" width="400" /> |
 
-### 🌅 3. [TODO] Multi-frame HDR Synthesis (MF-HDR)
+### 🌅 3. [TODO] Multi-frame HDR Synthesis (HDR)
 
 Synthesizes high bit-depth and high dynamic range images based on multi-exposure burst shots (EV0/EV-/EV--).
 
-### 🎨 4. [TODO] Learning-based Tonemapping (LTM)
+### 🎨 4. [TODO] Learning-based Tonemapping (AITM)
 
 Data-driven AI Local Tonemapping Module
 
-### 🪄 5. [TODO] Diffusion-based Image Post Enhancement (IPE)
+### 🪄 5. [TODO] Diffusion-based Image Post Enhancement (DiffIPE)
 
 Image Post-processing and Enhancement Based on Large-Scale Pre-training and Adversarial Distillation of Single-Step Diffusion Models
 

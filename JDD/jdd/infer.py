@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import numpy as np
@@ -72,9 +72,16 @@ def patch_inference(model: torch.nn.Module, x: torch.Tensor, scale: int, patch_s
 def _load_config(args: argparse.Namespace, checkpoint: dict[str, Any]) -> dict[str, Any]:
     if args.config:
         return resolve_config_paths(load_json(args.config), args.config, args.camera_module_json)
-    config = checkpoint["config"]
+    config = dict(checkpoint["config"])
     if args.camera_module_json:
         config["camera_module_json"] = str(Path(args.camera_module_json).resolve())
+    else:
+        camera_path = Path(config["camera_module_json"])
+        if not camera_path.exists():
+            camera_name = PureWindowsPath(str(config["camera_module_json"])).name
+            local_camera_path = Path(__file__).resolve().parents[1] / "configs" / camera_name
+            if local_camera_path.exists():
+                config["camera_module_json"] = str(local_camera_path)
     return config
 
 
@@ -208,12 +215,13 @@ def run_inference(args: argparse.Namespace) -> None:
         opencv_result = metrics(opencv_pred, target)
 
         stem = f"{idx:04d}_{Path(image_path).stem}"
-        sample_dir = out_dir / stem
+        sample_dir = out_dir / f"{idx:04d}_{Path(image_path).stem}"
         save_rgb_tensor(sample_dir / "pred.png", pred)
         save_rgb_tensor(sample_dir / "opencv_demosaic.png", opencv_pred)
         save_rgb_tensor(sample_dir / "gt.png", target)
         _comparison_image(pred, target).save(sample_dir / "comparison_gt_pred_error.png")
         _comparison_with_baseline(pred, opencv_pred, target).save(sample_dir / "comparison_gt_jdd_opencv_errors.png")
+
         save_json(sample_dir / "metadata.json", sample["metadata"])
         row = {
             "image": str(Path(image_path).resolve()),
@@ -230,7 +238,7 @@ def run_inference(args: argparse.Namespace) -> None:
         save_json(sample_dir / "metrics.json", row)
         print(
             f"{stem}: jdd_psnr={result.psnr:.4f} jdd_ssim={result.ssim:.6f} jdd_lpips={result.lpips:.6f} "
-            f"opencv_psnr={opencv_result.psnr:.4f} opencv_ssim={opencv_result.ssim:.6f} opencv_lpips={opencv_result.lpips:.6f}"
+            f"opencv_psnr={row['opencv_psnr']:.4f} opencv_ssim={row['opencv_ssim']:.6f} opencv_lpips={row['opencv_lpips']:.6f}"
         )
 
     with (out_dir / "metrics.csv").open("w", newline="", encoding="utf-8") as f:

@@ -39,14 +39,6 @@ configs/
     example_camera_10bit_binning.json
 ```
 
-## Environment
-
-```powershell
-conda activate ISP
-cd H:\yunong\Realistic-Raw-Simulation\raw-sim
-pip install -e .[dev]
-```
-
 ## Camera JSON Only
 
 Simulation uses one camera JSON file. It contains gamma, CCM, AWB, lens PSF blur, sensor bit depth and levels, CFA/readout mode, analog gain, and calibrated noise parameters.
@@ -65,37 +57,10 @@ Black level can be `"auto"`. With `black_level_10bit_reference: 32`, auto black 
 - 12-bit: 128 DN
 - 14-bit: 512 DN
 
-Lens PSF blur is configured under `lens_psf`. The default Gaussian setting is enabled with `kernel_size: 5` and `sigma: 1.0`, and it is applied before sensor level mapping and CFA packing.
+Lens PSF blur is configured under `lens_psf`, and it is applied before sensor level mapping and CFA packing. Supported kernels:
 
-## Generate Training Pairs
-
-Run through the bash entrypoint:
-
-```bash
-python ./scripts/generate_raw.py \
-  --input ./datasets/DIV2K \
-  --output ./train_pairs \
-  --camera-json ./configs/cameras/example_camera_10bit_binning.json \
-  --patch-size 512 \
-  --num-patches 1000
-```
-
-Read a generated pair:
-
-```python
-import json
-import numpy as np
-
-meta = json.load(open("sample_metadata.json", "r", encoding="utf-8"))
-
-raw_info = meta["files"]["input_noisy_raw"]
-noisy_raw = np.fromfile("sample_input_noisy_raw.raw", dtype="<u2").reshape(raw_info["shape"])
-
-gt_info = meta["files"]["gt_linear_rgb"]
-gt = np.fromfile("sample_gt_linear_rgb.raw", dtype="<f4").reshape(gt_info["shape"])
-
-iso = int(open("sample_iso.txt").read())
-```
+- `kernel: "gaussian"` with `kernel_size` and `sigma`.
+- `kernel: "guided"` with `kernel_size` and `eps` for edge-aware guided filtering.
 
 ## Download RGB Datasets
 
@@ -105,26 +70,21 @@ DIV2K HR:
 python ./scripts/download_hr_datasets.py --dataset div2k --root ./datasets --div2k-splits train
 ```
 
-Flickr2K first rows from the requested HuggingFace endpoint:
+Full Flickr2K HR dataset from Hugging Face (about 11.6 GB, 2650 images):
 
 ```bash
 python ./scripts/download_hr_datasets.py --dataset flickr2k --root ./datasets
 ```
 
-Download and simulate:
+## Generate Training Pairs
+
+Run through the bash entrypoint:
 
 ```bash
-python ./scripts/download_hr_datasets.py \
-  --dataset all \
-  --root ./datasets \
-  --simulate-output ./train_pairs \
-  --camera-json ./configs/cameras/example_camera_10bit_binning.json \
+python ./scripts/generate_raw.py \
+  --input ./datasets/DIV2K/DIV2K_train_HR \
+  --output ./simu_pairs \
+  --camera-json ./configs/cameras/example_camera_10bit_RGGB_binning.json \
   --patch-size 512 \
-  --num-patches 1000
-```
-
-Run tests:
-
-```bash
-python ./scripts/test.py -q
+  --num-patches 5
 ```
