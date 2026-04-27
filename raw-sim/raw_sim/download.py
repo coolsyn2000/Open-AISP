@@ -18,6 +18,8 @@ DIV2K_URLS = {
     "valid": "https://data.vision.ee.ethz.ch/cvl/DIV2K/DIV2K_valid_HR.zip",
 }
 FLICKR2K_FIRST_ROWS_URL = "https://datasets-server.huggingface.co/first-rows?dataset=yangtao9009%2FFlickr2K&config=default&split=train"
+FLICKR2K_ZIP_URL = "https://huggingface.co/datasets/yangtao9009/Flickr2K/resolve/main/Flickr2K.zip"
+FLICKR2K_EXPECTED_IMAGES = 2650
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
 
 
@@ -52,10 +54,29 @@ def _download(url: str, path: Path, skip_existing: bool = True, retries: int = 3
 
 
 def _safe_path(root: Path, name: str) -> Path:
+    resolved_root = root.resolve()
     target = (root / name).resolve()
-    if not str(target).startswith(str(root.resolve())):
+    try:
+        target.relative_to(resolved_root)
+    except ValueError:
         raise RuntimeError(f"Unsafe archive path: {name}")
     return target
+
+
+def _count_images(root: Path) -> int:
+    if not root.exists():
+        return 0
+    return sum(1 for p in root.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS)
+
+
+def _remove_first_rows_preview(image_root: Path) -> bool:
+    images = sorted(p for p in image_root.iterdir() if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS)
+    preview_names = {f"{idx:06d}.jpg" for idx in range(100)}
+    if len(images) != 100 or {p.name for p in images} != preview_names:
+        return False
+    for image in images:
+        image.unlink()
+    return True
 
 
 def download_div2k(root: Path, splits: list[str], skip_existing: bool = True) -> Path:
@@ -77,14 +98,12 @@ def download_div2k(root: Path, splits: list[str], skip_existing: bool = True) ->
     return dataset_root
 
 
-def download_flickr2k(root: Path, skip_existing: bool = True, url: str = FLICKR2K_FIRST_ROWS_URL) -> Path:
-    dataset_root = root / "Flickr2K"
-    image_root = dataset_root / "Flickr2K_HR"
-    image_root.mkdir(parents=True, exist_ok=True)
-    if skip_existing and len([p for p in image_root.iterdir() if p.suffix.lower() in IMAGE_EXTENSIONS]) >= 100:
-        print(f"Using existing Flickr2K images: {image_root}")
-        return dataset_root
+def _is_first_rows_url(url: str) -> bool:
+    parsed = urllib.parse.urlsplit(url)
+    return parsed.netloc == "datasets-server.huggingface.co" and parsed.path.rstrip("/") == "/first-rows"
 
+
+def _download_flickr2k_first_rows(root: Path, image_root: Path, skip_existing: bool, url: str) -> None:
     manifest = root / "archives" / "Flickr2K_first_rows.json"
     _download(url, manifest, skip_existing=False)
     data = json.loads(manifest.read_text(encoding="utf-8"))
@@ -100,6 +119,55 @@ def download_flickr2k(root: Path, skip_existing: bool = True, url: str = FLICKR2
         if suffix not in IMAGE_EXTENSIONS:
             suffix = ".jpg"
         _download(src, image_root / f"{idx:06d}{suffix}", skip_existing)
+
+
+def _extract_flickr2k_zip(archive: Path, image_root: Path, skip_existing: bool) -> int:
+    extracted = 0
+    with zipfile.ZipFile(archive) as zf:
+        image_infos = [
+            info for info in zf.infolist()
+            if not info.is_dir() and Path(info.filename).suffix.lower() in IMAGE_EXTENSIONS
+        ]
+        if not image_infos:
+            raise RuntimeError(f"No image files found in Flickr2K archive: {archive}")
+        for info in image_infos:
+            target = _safe_path(image_root, Path(info.filename).name)
+            if skip_existing and target.exists():
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with zf.open(info) as src, target.open("wb") as dst:
+                shutil.copyfileobj(src, dst)
+            extracted += 1
+    return extracted
+
+
+def download_flickr2k(root: Path, skip_existing: bool = True, url: str = FLICKR2K_ZIP_URL) -> Path:
+    dataset_root = root / "Flickr2K"
+    image_root = dataset_root / "Flickr2K_HR"
+    image_root.mkdir(parents=True, exist_ok=True)
+
+    if _is_first_rows_url(url):
+        if skip_existing and _count_images(image_root) >= 100:
+            print(f"Using existing Flickr2K preview images: {image_root}")
+            return dataset_root
+        _download_flickr2k_first_rows(root, image_root, skip_existing, url)
+        return dataset_root
+
+    if skip_existing and _count_images(image_root) >= FLICKR2K_EXPECTED_IMAGES:
+        print(f"Using existing Flickr2K images: {image_root}")
+        return dataset_root
+
+    if skip_existing and _remove_first_rows_preview(image_root):
+        print(f"Removed existing Flickr2K preview images before full download: {image_root}")
+
+    archive_name = Path(urllib.parse.urlsplit(url).path).name or "Flickr2K.zip"
+    archive = root / "archives" / archive_name
+    _download(url, archive, skip_existing)
+    extracted = _extract_flickr2k_zip(archive, image_root, skip_existing)
+    image_count = _count_images(image_root)
+    print(f"Flickr2K images ready: {image_count} files in {image_root} ({extracted} extracted)")
+    if image_count < FLICKR2K_EXPECTED_IMAGES:
+        print(f"Warning: expected about {FLICKR2K_EXPECTED_IMAGES} Flickr2K images, found {image_count}")
     return dataset_root
 
 
@@ -117,7 +185,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset", choices=["div2k", "flickr2k", "flicker2k", "all"], default="all")
     parser.add_argument("--root", default="./datasets")
     parser.add_argument("--div2k-splits", nargs="+", choices=["train", "valid"], default=["train"])
-    parser.add_argument("--flickr2k-url", default=FLICKR2K_FIRST_ROWS_URL)
+    parser.add_argument("--flickr2k-url", default=FLICKR2K_ZIP_URL)
     parser.add_argument("--skip-existing", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--simulate-output")
     parser.add_argument("--camera-json")

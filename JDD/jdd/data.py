@@ -226,6 +226,80 @@ class SimulatedRawBurstDataset(Dataset):
         )
 
 
+class RgbPatchDataset(Dataset):
+    def __init__(
+        self,
+        image_roots: str | Path | Sequence[str | Path],
+        camera_module_json: str | Path,
+        patch_size: int = 128,
+        max_images: int | None = None,
+        length: int | None = None,
+        frames: int = 3,
+        seed: int = 0,
+        deterministic: bool = False,
+        cache_images: bool = False,
+        max_cached_images: int | None = None,
+    ) -> None:
+        self.image_paths = collect_rgb_images(image_roots)
+        if not self.image_paths:
+            raise ValueError(f"No RGB images found in {image_roots}")
+        limit = max_images if max_images is not None else length
+        if limit is not None:
+            self.image_paths = self.image_paths[: max(1, min(int(limit), len(self.image_paths)))]
+        self.camera = load_camera_json(camera_module_json)
+        self.patch_size = int(patch_size)
+        self.frames = int(frames)
+        if self.frames != 3:
+            raise ValueError("This JDD framework expects exactly 3 noisy RAW frames")
+        self.min_gain, self.max_gain, self.gain_sampling = analog_gain_range(self.camera)
+        self.seed = int(seed)
+        self.deterministic = bool(deterministic)
+        self.cache_images = bool(cache_images)
+        self.max_cached_images = max_cached_images
+        self._image_cache: OrderedDict[Path, np.ndarray] = OrderedDict()
+
+        scale = cfa_scale(self.camera)
+        if self.patch_size % scale != 0:
+            raise ValueError(f"patch_size must be divisible by CFA scale {scale}")
+
+    def __len__(self) -> int:
+        return len(self.image_paths)
+
+    def _cached_rgb_patch(self, image_path: Path, seed: int) -> tuple[torch.Tensor, dict[str, int]]:
+        if not self.cache_images:
+            return load_rgb_patch(image_path, self.patch_size, seed)
+        arr = self._image_cache.get(image_path)
+        if arr is None:
+            with Image.open(image_path) as img:
+                arr = np.asarray(img.convert("RGB")).copy()
+            self._image_cache[image_path] = arr
+            if self.max_cached_images is not None:
+                while len(self._image_cache) > int(self.max_cached_images):
+                    self._image_cache.popitem(last=False)
+        else:
+            self._image_cache.move_to_end(image_path)
+        return crop_rgb_array(arr, self.patch_size, seed)
+
+    def __getitem__(self, index: int) -> dict[str, Any]:
+        image_path = self.image_paths[int(index)]
+        seed = self.seed + int(index) if self.deterministic else int(torch.randint(0, 2_147_483_647, ()).item())
+        patch, crop = self._cached_rgb_patch(image_path, seed)
+        gen = torch.Generator().manual_seed(seed)
+        analog_gain = sample_analog_gain(gen, self.min_gain, self.max_gain, self.gain_sampling)
+        return {
+            "rgb": patch,
+            "seed": torch.tensor(seed, dtype=torch.int64),
+            "analog_gain": torch.tensor(float(analog_gain), dtype=torch.float32),
+            "iso": torch.tensor(float(round(float(analog_gain) * 100.0)), dtype=torch.float32),
+            "metadata": {
+                "source_image_path": str(image_path.resolve()),
+                "crop_position": crop,
+                "analog_gain": float(analog_gain),
+                "iso": int(round(float(analog_gain) * 100.0)),
+            },
+        }
+
+
 def make_dataset_from_config(config: dict[str, Any], split: str = "train") -> SimulatedRawBurstDataset:
     data_cfg = config["data"]
     split_cfg = data_cfg.get(split, {})
@@ -239,6 +313,24 @@ def make_dataset_from_config(config: dict[str, Any], split: str = "train") -> Si
         frames=int(data_cfg.get("frames", 3)),
         seed=int(data_cfg.get("seed", 0)) + (0 if split == "train" else 100000),
         noise_map_reduce=data_cfg.get("noise_map_reduce", "mean"),
+        deterministic=split != "train",
+        cache_images=bool(data_cfg.get("cache_images", False)),
+        max_cached_images=data_cfg.get("max_cached_images"),
+    )
+
+
+def make_rgb_patch_dataset_from_config(config: dict[str, Any], split: str = "train") -> RgbPatchDataset:
+    data_cfg = config["data"]
+    split_cfg = data_cfg.get(split, {})
+    image_roots = split_cfg.get("image_roots", split_cfg.get("image_root", data_cfg.get("image_roots", data_cfg.get("image_root"))))
+    max_images = split_cfg.get("max_images", split_cfg.get("length", data_cfg.get("max_images")))
+    return RgbPatchDataset(
+        image_roots=image_roots,
+        camera_module_json=config["camera_module_json"],
+        patch_size=int(data_cfg.get("patch_size", 128)),
+        max_images=max_images,
+        frames=int(data_cfg.get("frames", 3)),
+        seed=int(data_cfg.get("seed", 0)) + (0 if split == "train" else 100000),
         deterministic=split != "train",
         cache_images=bool(data_cfg.get("cache_images", False)),
         max_cached_images=data_cfg.get("max_cached_images"),

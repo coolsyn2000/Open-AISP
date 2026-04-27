@@ -1,0 +1,49 @@
+site_name: Open-AISP
+site_description: Open-AISP AI-ISP pipeline documentation
+site_author: Open-AISP Contributors
+repo_name: Open-AISP
+
+theme:
+  name: readthedocs
+  language: en
+
+nav:
+  - Home: index.md
+  - raw-sim: raw-sim/index.md
+  - JDD: jdd/index.md
+  - HDR: hdr/index.md
+  - AITM: aitm/index.md
+  - DiffIPE: diffipe/index.md
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: zh
+          name: 中文
+          build: true
+          site_name: Open-AISP 文档
+          nav_translations:
+            Home: 首页
+            raw-sim: raw-sim
+            JDD: JDD
+            HDR: HDR
+            AITM: AITM
+            DiffIPE: DiffIPE
+
+markdown_extensions:
+  - admonition
+  - tables
+  - pymdownx.arithmatex:
+      generic: true
+  - toc:
+      permalink: true
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

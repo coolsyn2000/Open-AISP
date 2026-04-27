@@ -11,6 +11,7 @@
     "patch_size": 128,
     "frames": 3,
     "noise_map_reduce": "mean",
+    "simulate_on_device": true,
     "cache_images": true,
     "max_cached_images": 512,
     "val": {
@@ -39,18 +40,22 @@
   "train": {
     "output_dir": "runs/example_binning",
     "iterations": 100000,
-    "batch_size": 64,
-    "num_workers": 8,
+    "batch_size": 128,
+    "num_workers": 12,
     "persistent_workers": true,
-    "prefetch_factor": 8,
+    "prefetch_factor": 2,
     "worker_torch_threads": 1,
     "shuffle_images": false,
     "amp": true,
+    "channels_last": true,
+    "compile": false,
+    "compile_mode": "default",
     "cudnn_benchmark": true,
     "matmul_precision": "high",
     "grad_clip": 1.0,
     "log_every": 10,
     "save_every": 10000,
+    "latest_every": 1000,
     "val_every": 10000,
     "max_val_batches": 5
   }
