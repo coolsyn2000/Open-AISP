@@ -10,8 +10,8 @@
 
 | Language | Entry |
 | :---: | :--- |
-| 🌐 English | [English Documentation](./docs/index.md) |
-| 🇨🇳 中文 | [中文文档](./docs/index.zh.md) |
+| 🌐 English | [English Documentation](https://www.coolsyn.top/Open-AISP/) |
+| 🇨🇳 中文 | [中文文档](https://www.coolsyn.top/Open-AISP/zh/) |
 
 ## 🗓️ Timeline
 

@@ -13,11 +13,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: "docs/requirements.txt"
 
-      - run: pip install mkdocs
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r docs/requirements.txt
 
-      - run: mkdocs gh-deploy --force
+      - run: python -m mkdocs build --strict
+      - run: python -m mkdocs gh-deploy --force
