@@ -31,9 +31,9 @@
   },
   "lens_psf": {
     "enabled": true,
-    "kernel": "gaussian",
+    "kernel": "guided",
     "kernel_size": 5,
-    "sigma": 1.0
+    "eps": 0.001
   },
   "cfa": {
     "type": "binning",
